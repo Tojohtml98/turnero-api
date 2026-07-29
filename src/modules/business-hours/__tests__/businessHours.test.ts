@@ -2,6 +2,7 @@ import request from 'supertest'
 import app from '../../../app'
 import businessHoursRepo from '../businessHours.repository'
 import { WEEKDAYS, Weekday } from '../businessHours.model'
+import { updateBusinessHoursSchema } from '../businessHours.schema'
 import { createAdminAndLogin, createService, isoDate, futureDate } from '../../../tests/helpers'
 
 // Devuelve la proxima fecha que cae en el dia de semana pedido, siempre a
@@ -17,6 +18,35 @@ const nextWeekdayDate = (weekday: Weekday, minDaysAhead = 7): Date => {
 }
 
 const openDay = { open: '09:00', close: '18:00', closed: false }
+
+// El default de `closed` vive en el schema, no en mongoose. Desde la API los
+// dos caminos devuelven lo mismo, asi que se verifica sobre el parse: lo que
+// importa es que el service reciba el dia completo.
+describe('updateBusinessHoursSchema', () => {
+  it('fills closed with false when the client omits it', () => {
+    const parsed = updateBusinessHoursSchema.parse({
+      hours: { mon: { open: '09:00', close: '18:00' } },
+    })
+
+    expect(parsed.hours?.mon).toEqual({ open: '09:00', close: '18:00', closed: false })
+  })
+
+  it('keeps closed when the client sends it', () => {
+    const parsed = updateBusinessHoursSchema.parse({
+      hours: { sun: { open: '09:00', close: '13:00', closed: true } },
+    })
+
+    expect(parsed.hours?.sun?.closed).toBe(true)
+  })
+
+  it('rejects an inverted range', () => {
+    const result = updateBusinessHoursSchema.safeParse({
+      hours: { mon: { open: '18:00', close: '09:00' } },
+    })
+
+    expect(result.success).toBe(false)
+  })
+})
 
 describe('GET /api/business-hours (public)', () => {
   it('seeds and returns the default schedule on first call', async () => {
@@ -154,6 +184,54 @@ describe('PUT /api/admin/business-hours', () => {
       .send({ hours: { mon: { open: '25:00', close: '26:00' } } })
 
     expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when open is not earlier than close', async () => {
+    const { accessToken: token } = await createAdminAndLogin()
+
+    const res = await request(app)
+      .put('/api/admin/business-hours')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hours: { fri: { open: '18:00', close: '09:00', closed: false } } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.message).toMatch(/earlier than close/i)
+  })
+
+  it('returns 400 when open equals close', async () => {
+    const { accessToken: token } = await createAdminAndLogin()
+
+    const res = await request(app)
+      .put('/api/admin/business-hours')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hours: { fri: { open: '09:00', close: '09:00', closed: false } } })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('leaves the range unvalidated on a closed day', async () => {
+    const { accessToken: token } = await createAdminAndLogin()
+
+    // Con el dia cerrado los horarios no se leen, no hay motivo para rechazar.
+    const res = await request(app)
+      .put('/api/admin/business-hours')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hours: { sun: { open: '00:00', close: '00:00', closed: true } } })
+
+    expect(res.status).toBe(200)
+    expect(res.body.hours.sun.closed).toBe(true)
+  })
+
+  it('does not let an invalid range reach the database', async () => {
+    const { accessToken: token } = await createAdminAndLogin()
+
+    await request(app)
+      .put('/api/admin/business-hours')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ hours: { mon: { open: '20:00', close: '08:00', closed: false } } })
+
+    const res = await request(app).get('/api/business-hours')
+    expect(res.body.hours.mon).toMatchObject({ open: '09:00', close: '18:00' })
   })
 
   it('returns 400 for slotStepMinutes below the minimum', async () => {
@@ -303,25 +381,24 @@ describe('business hours drive availability', () => {
     expect(shortRes.body.slots).toEqual(['09:00', '09:30', '10:00'])
   })
 
-  it('yields no slots when open is not before close', async () => {
+  it('keeps a day usable after a valid range update', async () => {
     const { accessToken: token } = await createAdminAndLogin()
     const service = await createService(token, { durationMinutes: 30 })
     const friday = nextWeekdayDate('fri')
 
-    // El schema valida el formato HH:mm pero no que open < close, asi que un
-    // rango invertido se acepta y se traduce en un dia sin disponibilidad.
-    const putRes = await request(app)
+    await request(app)
       .put('/api/admin/business-hours')
       .set('Authorization', `Bearer ${token}`)
-      .send({ hours: { fri: { open: '18:00', close: '09:00', closed: false } } })
-
-    expect(putRes.status).toBe(200)
+      .send({
+        hours: { fri: { open: '14:00', close: '15:00', closed: false } },
+        slotStepMinutes: 30,
+      })
 
     const res = await request(app)
       .get('/api/appointments/availability')
       .query({ serviceId: service._id, date: isoDate(friday) })
 
-    expect(res.body.slots).toEqual([])
+    expect(res.body.slots).toEqual(['14:00', '14:30'])
   })
 })
 
