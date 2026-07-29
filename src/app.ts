@@ -13,6 +13,7 @@ import businessHoursRoutes from './modules/business-hours/businessHours.routes'
 import businessHoursAdminRoutes from './modules/business-hours/businessHours.admin.routes'
 import appointmentRoutes from './modules/appointments/appointment.routes'
 import appointmentAdminRoutes from './modules/appointments/appointment.admin.routes'
+import intentRoutes from './modules/intents/intent.routes'
 
 const app = express()
 
@@ -59,6 +60,7 @@ app.get('/', (_req: Request, res: Response) =>
     <li><span class="method">GET</span><span class="path">/api/business-hours</span></li>
     <li><span class="method">GET</span><span class="path">/api/appointments/availability</span></li>
     <li><span class="method">POST</span><span class="path">/api/appointments</span></li>
+    <li><span class="method">POST</span><span class="path">/api/intents/parse</span><span class="note">lenguaje natural</span></li>
   </ul>
 
   <h2>Admin</h2>
@@ -88,6 +90,7 @@ app.use('/api/auth', authRoutes)
 app.use('/api/services', serviceRoutes)
 app.use('/api/business-hours', businessHoursRoutes)
 app.use('/api/appointments', appointmentRoutes)
+app.use('/api/intents', intentRoutes)
 
 // Admin (todo detras de JWT + rol admin)
 app.use('/api/admin/services', authenticate, authorize('admin'), serviceAdminRoutes)

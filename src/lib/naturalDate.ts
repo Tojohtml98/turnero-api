@@ -185,7 +185,17 @@ export const parseNaturalTime = (text: string): string | null => {
     return `${pad2((hour + 23) % 24)}:45`
   }
 
-  // 3. Hora sola, pero solo si el texto la marca como hora ("a las 3", "15hs").
+  // 3. Hora seguida de la franja, sin "a las" adelante: "3 de la tarde".
+  const withBand = input.match(
+    /\b(\d{1,2})\s+(?:de|por|a|en)\s+la\s+(?:manana|tarde|noche)\b/
+  )
+  if (withBand) {
+    const hour = Number(withBand[1])
+    if (hour > 23) return null
+    return `${pad2(applyMeridiem(hour, input))}:00`
+  }
+
+  // 4. Hora sola, pero solo si el texto la marca como hora ("a las 3", "15hs").
   const bare = input.match(/\b(?:a las?|las?|al?) (\d{1,2})\b|\b(\d{1,2})\s?(?:hs|h|horas)\b/)
   if (bare) {
     const hour = Number(bare[1] ?? bare[2])

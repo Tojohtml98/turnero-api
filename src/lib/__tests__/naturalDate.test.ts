@@ -128,6 +128,11 @@ describe('parseNaturalTime', () => {
     expect(parseNaturalTime('a las 4 de la tarde')).toBe('16:00')
   })
 
+  it('reads the hour when the band follows it without "a las"', () => {
+    expect(parseNaturalTime('3 de la tarde')).toBe('15:00')
+    expect(parseNaturalTime('9 de la manana')).toBe('09:00')
+  })
+
   it('respects an explicit night band', () => {
     expect(parseNaturalTime('a las 8 de la noche')).toBe('20:00')
   })

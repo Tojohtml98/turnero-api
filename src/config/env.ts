@@ -18,6 +18,13 @@ export interface Env {
   smtpPass: string
   smtpFrom: string
   reminderCronHour: number
+  intentParser: string
+  intentTimeoutMs: number
+  ollamaUrl: string
+  ollamaModel: string
+  nimApiKey: string
+  nimBaseUrl: string
+  nimModel: string
 }
 
 const env: Env = {
@@ -38,6 +45,15 @@ const env: Env = {
   smtpPass: process.env.SMTP_PASS ?? '',
   smtpFrom: process.env.SMTP_FROM || 'Turnero <no-reply@turnero.local>',
   reminderCronHour: Number(process.env.REMINDER_CRON_HOUR) || 18,
+  // Motor de lenguaje natural: rules | ollama | nim | auto. El default es el
+  // deterministico, que no necesita red ni configuracion.
+  intentParser: process.env.INTENT_PARSER ?? 'rules',
+  intentTimeoutMs: Number(process.env.INTENT_TIMEOUT_MS) || 8000,
+  ollamaUrl: process.env.OLLAMA_URL ?? '',
+  ollamaModel: process.env.OLLAMA_MODEL ?? 'llama3.2',
+  nimApiKey: process.env.NVIDIA_NIM_API_KEY ?? '',
+  nimBaseUrl: process.env.NVIDIA_NIM_BASE_URL ?? 'https://integrate.api.nvidia.com/v1',
+  nimModel: process.env.NVIDIA_NIM_MODEL ?? 'meta/llama-3.1-8b-instruct',
 }
 
 export default env
